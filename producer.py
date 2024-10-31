@@ -52,7 +52,7 @@ def send_pickle_file(file_path):
 # Đọc tất cả file pickle từ thư mục và gửi qua Kafka với nhiều luồng
 def main():
     # Tạo ThreadPoolExecutor để chạy các luồng song song
-    with ThreadPoolExecutor(max_workers=os.getenv("max_worker")) as executor:  # Tăng số lượng luồng nếu cần
+    with ThreadPoolExecutor(max_workers = int(os.getenv("max_worker"))) as executor:  # Tăng số lượng luồng nếu cần
         futures = []
         for filename in os.listdir(PICKLE_FILES_DIR):
             if filename.endswith('.pickle'):

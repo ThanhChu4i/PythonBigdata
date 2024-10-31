@@ -5,9 +5,9 @@ import pickle
 import os
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import json
 
 load_dotenv()
+
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -21,41 +21,48 @@ consumer = KafkaConsumer(
     TOPIC_NAME,
     bootstrap_servers=KAFKA_SERVER,
     group_id='pickle_consumer_group',
+    acks='all',
     enable_auto_commit=True,
     auto_offset_reset='earliest',
     max_poll_records=50,
     fetch_max_bytes=10*1024*1024,
     heartbeat_interval_ms=3000,
     session_timeout_ms=10000,
+    consumer_timeout_ms=10000,  # Thêm timeout cho consumer
 )
 
 # Hàm xử lý và lưu dữ liệu, bao gồm giữ nguyên tên file
 def process_message(message, output_dir):
     try:
-        compressed_data = message.value
-        decompressed_data = gzip.decompress(compressed_data)
-        
-        # Deserialize và lấy tên file gốc từ message
-        file_data = pickle.loads(decompressed_data)
-        original_filename = file_data.get("filename")  # Giả sử data có định dạng {"filename": "name.pickle", "content": data}
+        # Dữ liệu từ message.value là serialized pickle chứa dữ liệu file
+        serialized_data = message.value
 
-        # Nếu "content" chứa dữ liệu thực tế, xử lý và lưu lại
-        data = file_data["content"]
+        # Deserialize dữ liệu
+        file_data = pickle.loads(serialized_data)
+
+        # Lấy tên file và nội dung từ dữ liệu
+        original_filename = file_data["filename"]  # Lấy tên file từ message
+        compressed_content = file_data["content"]   # Nội dung đã nén
+
+        # Giải nén nội dung
+        content = gzip.decompress(compressed_content)
 
         output_file = os.path.join(output_dir, original_filename)  # Giữ nguyên tên file gốc
+
+        # Lưu dữ liệu vào file
         with open(output_file, 'wb') as f:
-            pickle.dump(data, f)
+            f.write(content)  # Ghi nội dung đã giải nén vào file
         logging.info(f"Saved data to {output_file}")
     except Exception as e:
         logging.error(f"Error processing message {message.offset}: {e}")
 
 # Tiến hành tiêu thụ message từ Kafka với nhiều luồng
 def main():
-    with ThreadPoolExecutor(max_workers = os.getenv("max_worker")) as executor:  # Tăng số luồng lên để xử lý nhanh hơn
+    with ThreadPoolExecutor(max_workers=int(os.getenv("max_worker"))) as executor:  # Tăng số luồng lên để xử lý nhanh hơn
         try:
             while True:
                 messages = consumer.poll(timeout_ms=1000)
-                
+
                 # Đưa từng message vào luồng xử lý song song
                 futures = []
                 for _, batch in messages.items():
