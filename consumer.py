@@ -21,7 +21,6 @@ consumer = KafkaConsumer(
     TOPIC_NAME,
     bootstrap_servers=KAFKA_SERVER,
     group_id='pickle_consumer_group',
-    acks='all',
     enable_auto_commit=True,
     auto_offset_reset='earliest',
     max_poll_records=50,
