@@ -1,4 +1,3 @@
-#producer
 from kafka import KafkaProducer
 from dotenv import load_dotenv
 import pickle
@@ -10,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 load_dotenv()
+
 # Cấu hình Kafka và thư mục chứa file
 KAFKA_SERVER = os.getenv("KAFKA_SERVER_PRODUCER")
 TOPIC_NAME = os.getenv("TOPIC_NAME")
@@ -38,8 +38,8 @@ def send_pickle_file(file_path):
 
         # Tạo dữ liệu với tên file và nội dung nén
         message_data = {
-            "filename": filename,
-            "content": compressed_content
+            "filename": filename,  # Tên file
+            "content": compressed_content  # Nội dung file đã nén
         }
         serialized_data = pickle.dumps(message_data)  # Chuẩn bị dữ liệu để gửi
 
@@ -53,7 +53,7 @@ def send_pickle_file(file_path):
 # Đọc tất cả file pickle từ thư mục và gửi qua Kafka với nhiều luồng
 def main():
     # Tạo ThreadPoolExecutor để chạy các luồng song song
-    with ThreadPoolExecutor(max_workers = int(os.getenv("max_worker"))) as executor:  # Tăng số lượng luồng nếu cần
+    with ThreadPoolExecutor(max_workers=int(os.getenv("max_worker"))) as executor:  # Tăng số lượng luồng nếu cần
         futures = []
         for filename in os.listdir(PICKLE_FILES_DIR):
             if filename.endswith('.pickle'):

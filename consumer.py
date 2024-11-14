@@ -1,4 +1,3 @@
-#consumer
 from kafka import KafkaConsumer
 from dotenv import load_dotenv
 import gzip
@@ -47,6 +46,10 @@ def process_message(message, output_dir):
         # Giải nén nội dung
         content = gzip.decompress(compressed_content)
 
+        # Đảm bảo thư mục đầu ra tồn tại
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
         output_file = os.path.join(output_dir, original_filename)  # Giữ nguyên tên file gốc
 
         # Lưu dữ liệu vào file
@@ -61,6 +64,7 @@ def main():
     with ThreadPoolExecutor(max_workers=int(os.getenv("max_worker"))) as executor:  # Tăng số luồng lên để xử lý nhanh hơn
         try:
             while True:
+                # Lấy messages từ Kafka
                 messages = consumer.poll(timeout_ms=1000)
 
                 # Đưa từng message vào luồng xử lý song song
@@ -72,6 +76,7 @@ def main():
                 # Đảm bảo tất cả các luồng hoàn thành
                 for future in as_completed(futures):
                     future.result()
+
         except Exception as e:
             logging.error(f"Consumer error: {e}")
         finally:
