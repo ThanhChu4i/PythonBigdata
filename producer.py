@@ -1,3 +1,4 @@
+#producer
 from kafka import KafkaProducer
 from dotenv import load_dotenv
 import pickle
@@ -10,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 load_dotenv()
 # Cấu hình Kafka và thư mục chứa file
-KAFKA_SERVER = os.getenv("KAFKA_SERVER")
+KAFKA_SERVER = os.getenv("KAFKA_SERVER_PRODUCER")
 TOPIC_NAME = os.getenv("TOPIC_NAME")
 PICKLE_FILES_DIR = os.getenv("PICKLE_FILES_DIR")
 

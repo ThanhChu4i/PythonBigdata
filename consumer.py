@@ -1,3 +1,4 @@
+#consumer
 from kafka import KafkaConsumer
 from dotenv import load_dotenv
 import gzip
@@ -12,7 +13,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Cấu hình Kafka và thư mục lưu trữ
-KAFKA_SERVER = os.getenv("KAFKA_SERVER")
+KAFKA_SERVER = os.getenv("KAFKA_SERVER_CONSUMER")
 TOPIC_NAME = os.getenv("TOPIC_NAME")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 
