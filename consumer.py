@@ -16,7 +16,7 @@ KAFKA_SERVER = os.getenv("KAFKA_SERVER_CONSUMER")
 TOPIC_NAME = os.getenv("TOPIC_NAME")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 
-# Khởi tạo KafkaConsumer với cấu hình tối ưu
+# Khởi tạo KafkaConsumer với cấu hình tối ư
 consumer = KafkaConsumer(
     TOPIC_NAME,
     bootstrap_servers=KAFKA_SERVER,
