@@ -5,6 +5,7 @@ import gzip
 import os
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from kafka.errors import KafkaError
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -14,57 +15,60 @@ load_dotenv()
 KAFKA_SERVER = os.getenv("KAFKA_SERVER_PRODUCER")
 TOPIC_NAME = os.getenv("TOPIC_NAME")
 PICKLE_FILES_DIR = os.getenv("PICKLE_FILES_DIR")
+MAX_WORKERS = int(os.getenv("max_worker", 10))
+
+if not all([KAFKA_SERVER, TOPIC_NAME, PICKLE_FILES_DIR]):
+    logging.error("Missing environment variables. Please check the .env file.")
+    exit(1)
 
 # Khởi tạo Kafka Producer với cấu hình tối ưu
 producer = KafkaProducer(
     bootstrap_servers=KAFKA_SERVER,
     acks='all',
-    compression_type=None,  # Không nén tại Kafka để tránh lỗi nén
+    compression_type='gzip',
     batch_size=32*1024,
-    linger_ms=10,
+    linger_ms=50,
     buffer_memory=128*1024*1024,
     max_request_size=5*1024*1024,
 )
 
-# Hàm gửi file .pickle qua Kafka và giữ nguyên tên file
+# Hàm gửi file .pickle qua Kafka
 def send_pickle_file(file_path):
-    try:
-        filename = os.path.basename(file_path)  # Lấy tên file gốc
+    retries = 3
+    filename = os.path.basename(file_path)
 
-        # Đọc và nén dữ liệu file
-        with open(file_path, 'rb') as f:
-            content = f.read()
-            compressed_content = gzip.compress(content)
+    for attempt in range(retries):
+        try:
+            logging.info(f"Processing file: {file_path}")
 
-        # Tạo dữ liệu với tên file và nội dung nén
-        message_data = {
-            "filename": filename,  # Tên file
-            "content": compressed_content  # Nội dung file đã nén
-        }
-        serialized_data = pickle.dumps(message_data)  # Chuẩn bị dữ liệu để gửi
+            with open(file_path, 'rb') as f:
+                content = f.read()
+                compressed_content = gzip.compress(content)
 
-        # Gửi dữ liệu qua Kafka
-        producer.send(TOPIC_NAME, serialized_data)
-        logging.info(f"Sent file: {filename} to topic: {TOPIC_NAME}")
+            message_data = {"filename": filename, "content": compressed_content}
+            serialized_data = pickle.dumps(message_data)
 
-    except Exception as e:
-        logging.error(f"Error sending file {file_path}: {e}")
+            producer.send(TOPIC_NAME, serialized_data).get(timeout=10)
+            logging.info(f"Sent file: {filename} to topic: {TOPIC_NAME}")
+            break
+        except KafkaError as e:
+            logging.warning(f"Retry {attempt + 1}/{retries} for file {filename} due to error: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error on file {filename}: {e}")
+            break
 
-# Đọc tất cả file pickle từ thư mục và gửi qua Kafka với nhiều luồng
 def main():
-    # Tạo ThreadPoolExecutor để chạy các luồng song song
-    with ThreadPoolExecutor(max_workers=int(os.getenv("max_worker"))) as executor:  # Tăng số lượng luồng nếu cần
-        futures = []
-        for filename in os.listdir(PICKLE_FILES_DIR):
-            if filename.endswith('.pickle'):
-                file_path = os.path.join(PICKLE_FILES_DIR, filename)
-                futures.append(executor.submit(send_pickle_file, file_path))
+    if not os.path.exists(PICKLE_FILES_DIR):
+        logging.error(f"Directory {PICKLE_FILES_DIR} does not exist.")
+        exit(1)
 
-        # Chờ tất cả các luồng hoàn thành
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(send_pickle_file, os.path.join(PICKLE_FILES_DIR, f))
+                   for f in os.listdir(PICKLE_FILES_DIR) if f.endswith('.pickle')]
+
         for future in as_completed(futures):
-            future.result()  # Kiểm tra nếu có exception trong các luồng
+            future.result()
 
-    # Đảm bảo tất cả message được gửi trước khi đóng producer
     try:
         producer.flush()
         logging.info("All messages sent successfully.")
