@@ -29,7 +29,7 @@ producer = KafkaProducer(
     batch_size=32*1024,
     linger_ms=50,
     buffer_memory=128*1024*1024,
-    max_request_size=5*1024*1024,
+    max_request_size=5*1024*1024,g
 )
 
 # Hàm gửi file .pickle qua Kafka
