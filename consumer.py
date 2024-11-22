@@ -4,8 +4,10 @@ import gzip
 import pickle
 import os
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# Load environment variables
 load_dotenv()
 
 # Cấu hình logging
@@ -15,67 +17,61 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 KAFKA_SERVER = os.getenv("KAFKA_SERVER_CONSUMER")
 TOPIC_NAME = os.getenv("TOPIC_NAME")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR")
+MAX_WORKERS = int(os.getenv("max_worker", 10))
 
-# Khởi tạo KafkaConsumer với cấu hình tối ưu
+if not all([KAFKA_SERVER, TOPIC_NAME, OUTPUT_DIR]):
+    logging.error("Missing environment variables. Please check the .env file.")
+    exit(1)
+
 consumer = KafkaConsumer(
     TOPIC_NAME,
     bootstrap_servers=KAFKA_SERVER,
     group_id='pickle_consumer_group',
-    enable_auto_commit=True,
+    enable_auto_commit=False,
     auto_offset_reset='earliest',
     max_poll_records=50,
     fetch_max_bytes=10*1024*1024,
     heartbeat_interval_ms=3000,
     session_timeout_ms=10000,
-    consumer_timeout_ms=10000,  # Thêm timeout cho consumer
+    consumer_timeout_ms=10000,
 )
 
-# Hàm xử lý và lưu dữ liệu, bao gồm giữ nguyên tên file
 def process_message(message, output_dir):
     try:
-        # Dữ liệu từ message.value là serialized pickle chứa dữ liệu file
         serialized_data = message.value
-
-        # Deserialize dữ liệu
         file_data = pickle.loads(serialized_data)
+        original_filename = file_data["filename"]
+        compressed_content = file_data["content"]
 
-        # Lấy tên file và nội dung từ dữ liệu
-        original_filename = file_data["filename"]  # Lấy tên file từ message
-        compressed_content = file_data["content"]   # Nội dung đã nén
+        if not os.path.isdir(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
 
-        # Giải nén nội dung
-        content = gzip.decompress(compressed_content)
-
-        # Đảm bảo thư mục đầu ra tồn tại
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-        output_file = os.path.join(output_dir, original_filename)  # Giữ nguyên tên file gốc
-
-        # Lưu dữ liệu vào file
+        output_file = os.path.join(output_dir, original_filename)
         with open(output_file, 'wb') as f:
-            f.write(content)  # Ghi nội dung đã giải nén vào file
-        logging.info(f"Saved data to {output_file}")
+            f.write(gzip.decompress(compressed_content))
+
+        logging.info(f"Saved file: {output_file}")
     except Exception as e:
         logging.error(f"Error processing message {message.offset}: {e}")
 
-# Tiến hành tiêu thụ message từ Kafka với nhiều luồng
 def main():
-    with ThreadPoolExecutor(max_workers=int(os.getenv("max_worker"))) as executor:  # Tăng số luồng lên để xử lý nhanh hơn
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         try:
             while True:
-                # Lấy messages từ Kafka
                 messages = consumer.poll(timeout_ms=1000)
 
-                # Đưa từng message vào luồng xử lý song song
-                futures = []
-                for _, batch in messages.items():
-                    for message in batch:
-                        futures.append(executor.submit(process_message, message, OUTPUT_DIR))
+                futures = [
+                    executor.submit(process_message, message, OUTPUT_DIR)
+                    for batch in messages.values()
+                    for message in batch
+                ]
 
-                # Đảm bảo tất cả các luồng hoàn thành
                 for future in as_completed(futures):
                     future.result()
+
+                # Commit offset sau khi xử lý thành công
+                consumer.commit()
+                logging.info("Committed offsets.")
 
         except Exception as e:
             logging.error(f"Consumer error: {e}")
