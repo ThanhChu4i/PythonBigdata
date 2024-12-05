@@ -1,19 +1,25 @@
-version: '3.8'
-
+version: "3.9"
 services:
   superset:
-    build: .
+    image: apache/superset:latest
     container_name: superset_app
     ports:
       - "8088:8088"
-    environment:
-      SUPERSET_ENV: production
-      SUPERSET_SECRET_KEY: "zQ+E6kxsQUK9xldHo9xz1U5YPJqa1R2j9XZlp8NfMv2HoH3oT8dNKD1GHM2QK/So"
+    depends_on:
+      - postgres
     volumes:
       - ./superset_home:/app/superset_home
-      - ./data:/app/data
-    command:
-      - "superset fab create-admin --username admin --password admin --firstname Admin --lastname User --email admin@admin.com && superset db upgrade && superset init && superset run -h 0.0.0.0 -p 8088"
+    environment:
+      SUPERSET_CONFIG_PATH: /app/superset_home/superset_config.py
 
-volumes:
-  superset_home:
+  postgres:
+    image: postgres:13
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: superset_user
+      POSTGRES_PASSWORD: superset_password
+      POSTGRES_DB: superset_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
