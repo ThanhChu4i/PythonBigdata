@@ -15,25 +15,24 @@ services:
       SUPERSET_DB__USER: superset
       SUPERSET_DB__PASSWORD: superset
       SUPERSET_DB__NAME: superset
-      SECRET_KEY: "chutienthanh"
     depends_on:
       - db
     volumes:
-      - superset_home:/app/superset_home
+      - ./superset_config.py:/app/pythonpath/superset_config.py  # Gắn file vào container
     restart: always
 
-  db:
-    image: postgres:15
-    container_name: postgres
-    environment:
-      POSTGRES_USER: superset
-      POSTGRES_PASSWORD: superset
-      POSTGRES_DB: superset
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: always
+  # db:
+  #   image: postgres:15
+  #   container_name: postgres
+  #   environment:
+  #     POSTGRES_USER: superset
+  #     POSTGRES_PASSWORD: superset
+  #     POSTGRES_DB: superset
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   restart: always
 
 volumes:
   superset_home:
