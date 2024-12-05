@@ -78,5 +78,6 @@ def main():
         finally:
             consumer.close()
 
+
 if __name__ == "__main__":
     main()
