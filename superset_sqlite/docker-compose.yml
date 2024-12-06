@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  postgres_db:
+        image: postgres:15
+        container_name: postgres_db
+        environment:
+          POSTGRES_USER: superset_user
+          POSTGRES_PASSWORD: superset_password
+          POSTGRES_DB: superset_db
+        volumes:
+          - postgres_data:/var/lib/postgresql/data
+        ports:
+          - "5433:5432"
   superset:
     build: .
     container_name: superset_app
@@ -9,11 +20,25 @@ services:
     environment:
       SUPERSET_ENV: production
       SUPERSET_SECRET_KEY: "zQ+E6kxsQUK9xldHo9xz1U5YPJqa1R2j9XZlp8NfMv2HoH3oT8dNKD1GHM2QK/So"
+      SUPERSET_DATABASE_URI: postgresql+psycopg2://superset_user:superset_password@postgres_db:5432/superset_db
+
+
     volumes:
       - ./superset_home:/app/superset_home
       - ./data:/app/data
-    command:
-      - "superset fab create-admin --username admin --password admin --firstname Admin --lastname User --email admin@admin.com && superset db upgrade && superset init && superset run -h 0.0.0.0 -p 8088"
-
+    command: >
+      bash -c "
+        superset fab create-admin --username admin --password admin --firstname Admin --lastname User --email admin@admin.com &&
+        superset db upgrade &&
+        superset init &&
+        superset run -h 0.0.0.0 -p 8088
+      "
+ 
 volumes:
-  superset_home:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./pg_data
+
